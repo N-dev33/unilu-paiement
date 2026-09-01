@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNILU - Paiement du minerval</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="phone">
+        <div class="header">
+            <div class="icon">U</div>
+            <div>
+                <h1>Université de Lubumbashi</h1>
+                <p>Paiement du minerval</p>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="student-card">
+                {% set parts = student['name'].split(' ') %}
+                <div class="avatar">{{ parts[0][0] }}{{ parts[1][0] if parts|length > 1 else '' }}</div>
+                <div>
+                    <div class="name">{{ student['name'] }}</div>
+                    <div class="meta">{{ student['faculty'] }} · {{ student['level'] }}</div>
+                </div>
+            </div>
+
+            {% if student['paid'] %}
+                <p style="text-align:center; font-size:13px; color:#3b6d11; margin-bottom:12px;">
+                    Ce compte est déjà à jour.
+                </p>
+                <a class="pay-btn" style="display:block; text-align:center; line-height:44px; text-decoration:none;"
+                   href="{{ url_for('receipt', student_id=student['id']) }}">Voir mon reçu</a>
+            {% else %}
+                <div class="amount-block">
+                    <div class="label">Montant dû · année académique</div>
+                    <div class="amount">{{ student['amount_due'] }} USD</div>
+                </div>
+
+                <form action="{{ url_for('pay', student_id=student['id']) }}" method="POST">
+                    <p style="font-size:12px; color:#6b7280; margin-bottom:8px;">Mode de paiement</p>
+                    <div class="methods">
+                        <label class="method selected" id="method-mm">
+                            <input type="radio" name="method" value="mobile_money" checked onclick="select('mm')">
+                            Mobile money
+                        </label>
+                        <label class="method" id="method-cb">
+                            <input type="radio" name="method" value="carte" onclick="select('cb')">
+                            Carte bancaire
+                        </label>
+                    </div>
+                    <button type="submit" class="pay-btn">Payer {{ student['amount_due'] }} USD</button>
+                </form>
+            {% endif %}
+
+            <div class="security-note">
+                Reçu numérique certifié avec QR code, vérifiable par la faculté
+            </div>
+            <a class="back-link" href="{{ url_for('logout') }}">Se déconnecter</a>
+        </div>
+    </div>
+
+    <script>
+        function select(which) {
+            document.getElementById('method-mm').classList.toggle('selected', which === 'mm');
+            document.getElementById('method-cb').classList.toggle('selected', which === 'cb');
+        }
+    </script>
+</body>
+</html>

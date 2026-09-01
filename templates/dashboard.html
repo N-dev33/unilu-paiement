@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de bord - Faculté de Criminologie</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .dash-wrap {
+            width: 100%;
+            max-width: 720px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+        }
+        .dash-header {
+            background: #185fa5;
+            color: white;
+            padding: 20px 24px;
+        }
+        .dash-header h1 { font-size: 16px; font-weight: 600; }
+        .dash-header p { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+
+        .stats-row {
+            display: flex;
+            gap: 12px;
+            padding: 18px 24px 0;
+        }
+        .stat-card {
+            flex: 1;
+            background: #f4f5f7;
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+        .stat-card .label { font-size: 11px; color: #6b7280; }
+        .stat-card .value { font-size: 20px; font-weight: 600; color: #1f2937; margin-top: 2px; }
+
+        .search-row { padding: 16px 24px 0; }
+        .search-row input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+        thead th {
+            text-align: left;
+            font-size: 11px;
+            color: #6b7280;
+            text-transform: uppercase;
+            padding: 10px 24px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        tbody td {
+            padding: 12px 24px;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #1f2937;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge.paid { background: #eaf3de; color: #3b6d11; }
+        .badge.unpaid { background: #fcebeb; color: #a32d2d; }
+
+        .row-actions a {
+            font-size: 12px;
+            color: #378ade;
+            text-decoration: none;
+            margin-right: 10px;
+        }
+
+        .mini-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+            vertical-align: middle;
+            margin-right: 8px;
+            background: #e6f1fb;
+        }
+    </style>
+</head>
+<body>
+    <div class="dash-wrap">
+        <div class="dash-header">
+            <h1>Tableau de bord — Faculté de Criminologie</h1>
+            <p>Suivi des paiements du minerval</p>
+        </div>
+        <div style="padding: 10px 24px 0; text-align: right;">
+            <a href="{{ url_for('agent_logout') }}" style="font-size:12px; color:#378ade; text-decoration:none;">Se déconnecter</a>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="label">Étudiants</div>
+                <div class="value">{{ total }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">À jour</div>
+                <div class="value">{{ paid_count }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">En retard</div>
+                <div class="value">{{ total - paid_count }}</div>
+            </div>
+        </div>
+
+        <form class="search-row" method="GET" action="{{ url_for('dashboard') }}">
+            <input type="text" name="q" value="{{ query }}" placeholder="Rechercher par nom ou matricule...">
+        </form>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Étudiant</th>
+                    <th>Matricule</th>
+                    <th>Niveau</th>
+                    <th>Statut</th>
+                    <th>Date de paiement</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in students %}
+                <tr>
+                    <td>
+                        {% if s['photo_filename'] %}
+                        <img class="mini-avatar" src="{{ url_for('static', filename='photos/' + s['photo_filename']) }}" alt="">
+                        {% else %}
+                        <span class="mini-avatar" style="display:inline-flex; align-items:center; justify-content:center; font-size:10px; color:#185fa5; font-weight:600;">
+                            {{ s['name'].split(' ')[0][0] }}
+                        </span>
+                        {% endif %}
+                        {{ s['name'] }}
+                    </td>
+                    <td>{{ s['matricule'] }}</td>
+                    <td>{{ s['level'] }}</td>
+                    <td>
+                        {% if s['paid'] %}
+                        <span class="badge paid">Payé</span>
+                        {% else %}
+                        <span class="badge unpaid">Non payé</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ s['paid_at'] or '—' }}</td>
+                    <td class="row-actions">
+                        <a href="{{ url_for('upload_photo', student_id=s['id']) }}">Photo</a>
+                        {% if s['paid'] %}
+                        <a href="{{ url_for('receipt', student_id=s['id']) }}">Reçu</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

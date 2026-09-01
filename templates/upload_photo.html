@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo de l'étudiant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="phone">
+        <div class="header">
+            <div class="icon">U</div>
+            <div>
+                <h1>Université de Lubumbashi</h1>
+                <p>Photo d'identification</p>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="student-card">
+                {% if student['photo_filename'] %}
+                <img class="avatar" style="object-fit: cover;"
+                     src="{{ url_for('static', filename='photos/' + student['photo_filename']) }}" alt="Photo actuelle">
+                {% else %}
+                {% set parts = student['name'].split(' ') %}
+                <div class="avatar">{{ parts[0][0] }}{{ parts[1][0] if parts|length > 1 else '' }}</div>
+                {% endif %}
+                <div>
+                    <div class="name">{{ student['name'] }}</div>
+                    <div class="meta">{{ student['matricule'] }}</div>
+                </div>
+            </div>
+
+            <p style="font-size:12px; color:#6b7280; margin: 16px 0 8px;">
+                Cette photo sera affichée à l'agent lors du contrôle du reçu, pour vérifier l'identité de l'étudiant.
+            </p>
+
+            {% if error %}
+            <p style="font-size:12px; color:#a32d2d; margin-bottom:10px;">{{ error }}</p>
+            {% endif %}
+
+            <form action="{{ url_for('upload_photo', student_id=student['id']) }}" method="POST" enctype="multipart/form-data">
+                <input type="file" name="photo" accept=".jpg,.jpeg,.png" style="margin-bottom:14px; font-size:12px;">
+                <button type="submit" class="pay-btn">Enregistrer la photo</button>
+            </form>
+
+            <a class="back-link" href="{{ url_for('dashboard') }}">Retour au tableau de bord</a>
+        </div>
+    </div>
+</body>
+</html>

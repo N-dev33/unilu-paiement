@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNILU - Choisir un étudiant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="phone">
+        <div class="header">
+            <div class="icon">U</div>
+            <div>
+                <h1>Université de Lubumbashi</h1>
+                <p>Démo — choisir un étudiant</p>
+            </div>
+        </div>
+
+        <div class="content">
+            <p style="font-size:12px; color:#6b7280; margin-bottom:14px;">
+                Ceci simule la connexion d'un étudiant. En production, chacun accèderait directement à son propre compte.
+            </p>
+
+            {% for s in students %}
+            <a href="{{ url_for('pay_screen', student_id=s['id']) }}" style="text-decoration:none;">
+                <div class="student-card" style="margin-bottom:10px; cursor:pointer;">
+                    {% set parts = s['name'].split(' ') %}
+                    <div class="avatar">{{ parts[0][0] }}{{ parts[1][0] if parts|length > 1 else '' }}</div>
+                    <div>
+                        <div class="name">{{ s['name'] }}</div>
+                        <div class="meta">{{ s['matricule'] }} · {{ 'Payé' if s['paid'] else 'Non payé' }}</div>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+
+            <a href="{{ url_for('dashboard') }}" style="display:block; text-align:center; margin-top:16px; font-size:12px; color:#378ade; text-decoration:none;">
+                Voir le tableau de bord de la faculté →
+            </a>
+        </div>
+    </div>
+</body>
+</html>

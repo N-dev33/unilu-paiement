@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reçu de paiement</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="phone">
+        <div class="header">
+            <div class="icon">U</div>
+            <div>
+                <h1>Université de Lubumbashi</h1>
+                <p>Reçu de paiement</p>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="receipt-status">
+                <div class="check">✓</div>
+                <h2>Paiement confirmé</h2>
+                <p>Le minerval a bien été payé</p>
+            </div>
+
+            <div class="qr-box">
+                <img src="{{ url_for('static', filename='qrcodes/' + qr_filename) }}" alt="QR code du reçu">
+                <p>À présenter à l'agent pour tout contrôle</p>
+            </div>
+
+            <div class="receipt-details">
+                <div class="row"><span>Étudiant</span><span>{{ student['name'] }}</span></div>
+                <div class="row"><span>Matricule</span><span>{{ student['matricule'] }}</span></div>
+                <div class="row"><span>Faculté</span><span>{{ student['faculty'] }}</span></div>
+                <div class="row"><span>Montant</span><span>{{ student['amount_due'] }} USD</span></div>
+                <div class="row"><span>Mode</span><span>{{ 'Mobile money' if student['payment_method'] == 'mobile_money' else 'Carte bancaire' }}</span></div>
+                <div class="row"><span>Date</span><span>{{ student['paid_at'] }}</span></div>
+            </div>
+
+            <a class="back-link" href="{{ url_for('index') }}">Retour</a>
+        </div>
+    </div>
+</body>
+</html>

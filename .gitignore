@@ -1,0 +1,18 @@
+# Base de données locale (sera recréée automatiquement sur le serveur)
+unilu.db
+
+# Fichiers Python générés automatiquement
+__pycache__/
+*.pyc
+
+# QR codes générés lors des tests locaux
+static/qrcodes/*
+!static/qrcodes/.gitkeep
+
+# Photos uploadées lors des tests locaux (optionnel, à garder si tu veux les conserver)
+static/photos/*
+!static/photos/.gitkeep
+
+# Environnement virtuel Python (si tu en crées un en local)
+venv/
+env/

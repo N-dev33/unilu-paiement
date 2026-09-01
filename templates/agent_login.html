@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion agent - UNILU</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="phone">
+        <div class="header">
+            <div class="icon">U</div>
+            <div>
+                <h1>Université de Lubumbashi</h1>
+                <p>Connexion agent / faculté</p>
+            </div>
+        </div>
+
+        <div class="content">
+            {% if error %}
+            <p style="font-size:12px; color:#a32d2d; margin-bottom:12px;">{{ error }}</p>
+            {% endif %}
+
+            <form method="POST">
+                <p style="font-size:12px; color:#6b7280; margin-bottom:4px;">Identifiant</p>
+                <input type="text" name="username" placeholder="agent1" required
+                       style="width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:13px; margin-bottom:14px;">
+
+                <p style="font-size:12px; color:#6b7280; margin-bottom:4px;">Mot de passe</p>
+                <input type="password" name="password" placeholder="••••••••" required
+                       style="width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:13px; margin-bottom:18px;">
+
+                <button type="submit" class="pay-btn">Se connecter</button>
+            </form>
+
+            <p style="font-size:11px; color:#9ca3af; text-align:center; margin-top:16px;">
+                Démo — identifiant : agent1 · mot de passe : agent123
+            </p>
+
+            <a class="back-link" href="{{ url_for('login') }}">Connexion étudiant →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vérification du reçu</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="verify-page">
+
+        {% if status == "valid" %}
+        <div class="verify-status valid">
+            <div class="big-icon">✓</div>
+            <h2>Reçu valide</h2>
+            <p>Paiement du minerval confirmé</p>
+        </div>
+        <div class="verify-details">
+            {% if student['photo_filename'] %}
+            <img class="photo-placeholder" style="object-fit: cover;"
+                 src="{{ url_for('static', filename='photos/' + student['photo_filename']) }}" alt="Photo de l'étudiant">
+            {% else %}
+            {% set parts = student['name'].split(' ') %}
+            <div class="photo-placeholder">{{ parts[0][0] }}{{ parts[1][0] if parts|length > 1 else '' }}</div>
+            {% endif %}
+            <div class="receipt-details">
+                <div class="row"><span>Nom</span><span>{{ student['name'] }}</span></div>
+                <div class="row"><span>Matricule</span><span>{{ student['matricule'] }}</span></div>
+                <div class="row"><span>Faculté</span><span>{{ student['faculty'] }} · {{ student['level'] }}</span></div>
+                <div class="row"><span>Contrôlé le</span><span>{{ scanned_at }}</span></div>
+            </div>
+            <p style="text-align:center; font-size:12px; color:#6b7280; margin-top:14px;">
+                Comparez le visage de l'étudiant présent aux informations ci-dessus.
+            </p>
+        </div>
+
+        {% elif status == "already_used" %}
+        <div class="verify-status already_used">
+            <div class="big-icon">!</div>
+            <h2>Reçu déjà utilisé</h2>
+            <p>Ce QR code a déjà servi à un contrôle</p>
+        </div>
+        <div class="verify-details">
+            <div class="receipt-details">
+                <div class="row"><span>Nom</span><span>{{ student['name'] }}</span></div>
+                <div class="row"><span>Matricule</span><span>{{ student['matricule'] }}</span></div>
+                <div class="row"><span>Déjà contrôlé le</span><span>{{ student['scanned_at'] }}</span></div>
+            </div>
+            <p style="text-align:center; font-size:12px; color:#854f0b; margin-top:14px;">
+                Attention : ce reçu a peut-être été transmis à une autre personne.
+            </p>
+        </div>
+
+        {% else %}
+        <div class="verify-status invalid">
+            <div class="big-icon">✕</div>
+            <h2>Reçu invalide</h2>
+            <p>Aucun paiement ne correspond à ce code</p>
+        </div>
+        {% endif %}
+
+    </div>
+</body>
+</html>
