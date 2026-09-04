@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import qrcode
 
 app = Flask(__name__)
-app.secret_key = "cle-secrete-demo-a-remplacer-en-production"  # à changer avant tout vrai déploiement
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "cle-secrete-demo-a-remplacer-en-production")
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "unilu.db")
 QR_FOLDER = os.path.join(os.path.dirname(__file__), "static", "qrcodes")
@@ -17,6 +17,9 @@ PHOTO_FOLDER = os.path.join(os.path.dirname(__file__), "static", "photos")
 os.makedirs(QR_FOLDER, exist_ok=True)
 os.makedirs(PHOTO_FOLDER, exist_ok=True)
 ALLOWED_PHOTO_EXT = {"png", "jpg", "jpeg"}
+
+# Taux de change indicatif — à ajuster périodiquement (marché parallèle/officiel fluctuant)
+EXCHANGE_RATE_CDF_PER_USD = 2290
 
 
 def get_db_connection():
@@ -56,6 +59,18 @@ def init_db():
         )
     """)
     conn.commit()
+
+    # Migration : ajout de colonnes sur une base déjà existante (ignore si déjà présentes)
+    for statement in [
+        "ALTER TABLE students ADD COLUMN department TEXT",
+        "ALTER TABLE students ADD COLUMN payment_currency TEXT",
+        "ALTER TABLE students ADD COLUMN amount_local_paid INTEGER",
+    ]:
+        try:
+            conn.execute(statement)
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # la colonne existe déjà
 
     existing_students = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
     if existing_students == 0:
@@ -123,7 +138,9 @@ def login():
         password = request.form.get("password", "")
 
         conn = get_db_connection()
-        student = conn.execute("SELECT * FROM students WHERE matricule = ?", (matricule,)).fetchone()
+        student = conn.execute(
+            "SELECT * FROM students WHERE UPPER(matricule) = UPPER(?)", (matricule,)
+        ).fetchone()
         conn.close()
 
         if student and check_password_hash(student["password_hash"], password):
@@ -187,7 +204,7 @@ def pay_screen(student_id):
     conn.close()
     if not student:
         abort(404)
-    return render_template("index.html", student=student)
+    return render_template("index.html", student=student, exchange_rate=EXCHANGE_RATE_CDF_PER_USD)
 
 
 @app.route("/pay/<int:student_id>", methods=["POST"])
@@ -198,6 +215,7 @@ def pay(student_id):
         abort(403)
 
     method = request.form.get("method", "mobile_money")
+    currency = request.form.get("currency", "USD")
 
     conn = get_db_connection()
     student = conn.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone()
@@ -207,12 +225,16 @@ def pay(student_id):
 
     token = secrets.token_urlsafe(24)
     paid_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    amount_local_paid = None
+    if currency == "CDF":
+        amount_local_paid = round(student["amount_due"] * EXCHANGE_RATE_CDF_PER_USD)
 
     conn.execute("""
         UPDATE students
-        SET paid = 1, paid_at = ?, payment_method = ?, qr_token = ?, scanned_at = NULL
+        SET paid = 1, paid_at = ?, payment_method = ?, qr_token = ?, scanned_at = NULL,
+            payment_currency = ?, amount_local_paid = ?
         WHERE id = ?
-    """, (paid_at, method, token, student_id))
+    """, (paid_at, method, token, currency, amount_local_paid, student_id))
     conn.commit()
     conn.close()
 
@@ -266,6 +288,58 @@ def upload_photo(student_id):
 
     conn.close()
     return render_template("upload_photo.html", student=student, error=error)
+
+
+@app.route("/students/add", methods=["GET", "POST"])
+@staff_login_required
+def add_student():
+    """Formulaire agent : créer un nouvel étudiant, avec mot de passe généré automatiquement."""
+    error = None
+    generated_password = None
+    created_student = None
+
+    if request.method == "POST":
+        matricule = request.form.get("matricule", "").strip()
+        name = request.form.get("name", "").strip()
+        level = request.form.get("level", "").strip()
+        amount_due = request.form.get("amount_due", "").strip()
+
+        if not matricule or not name or not level or not amount_due:
+            error = "Tous les champs sont obligatoires."
+        elif not amount_due.isdigit():
+            error = "Le montant doit être un nombre entier."
+        else:
+            conn = get_db_connection()
+            existing = conn.execute(
+                "SELECT id FROM students WHERE UPPER(matricule) = UPPER(?)", (matricule,)
+            ).fetchone()
+
+            if existing:
+                error = "Ce matricule existe déjà."
+                conn.close()
+            else:
+                generated_password = secrets.token_hex(3)  # ex: "a1b2c3", facile à communiquer
+                conn.execute("""
+                    INSERT INTO students (matricule, password_hash, name, faculty, level, amount_due, paid)
+                    VALUES (?, ?, ?, ?, ?, ?, 0)
+                """, (
+                    matricule,
+                    generate_password_hash(generated_password),
+                    name,
+                    "Faculté de Criminologie",
+                    level,
+                    int(amount_due),
+                ))
+                conn.commit()
+                created_student = matricule
+                conn.close()
+
+    return render_template(
+        "add_student.html",
+        error=error,
+        generated_password=generated_password,
+        created_student=created_student,
+    )
 
 
 @app.route("/dashboard")
@@ -341,6 +415,3 @@ init_db()
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-    

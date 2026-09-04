@@ -32,7 +32,16 @@
                 <div class="row"><span>Étudiant</span><span>{{ student['name'] }}</span></div>
                 <div class="row"><span>Matricule</span><span>{{ student['matricule'] }}</span></div>
                 <div class="row"><span>Faculté</span><span>{{ student['faculty'] }}</span></div>
-                <div class="row"><span>Montant</span><span>{{ student['amount_due'] }} USD</span></div>
+                <div class="row">
+                    <span>Montant</span>
+                    <span>
+                        {% if student['payment_currency'] == 'CDF' and student['amount_local_paid'] %}
+                            {{ "{:,}".format(student['amount_local_paid']).replace(',', ' ') }} CDF
+                        {% else %}
+                            {{ student['amount_due'] }} USD
+                        {% endif %}
+                    </span>
+                </div>
                 <div class="row"><span>Mode</span><span>{{ 'Mobile money' if student['payment_method'] == 'mobile_money' else 'Carte bancaire' }}</span></div>
                 <div class="row"><span>Date</span><span>{{ student['paid_at'] }}</span></div>
             </div>

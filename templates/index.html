@@ -35,10 +35,22 @@
             {% else %}
                 <div class="amount-block">
                     <div class="label">Montant dû · année académique</div>
-                    <div class="amount">{{ student['amount_due'] }} USD</div>
+                    <div class="amount" id="amount-display">{{ student['amount_due'] }} USD</div>
                 </div>
 
                 <form action="{{ url_for('pay', student_id=student['id']) }}" method="POST">
+                    <p style="font-size:12px; color:#6b7280; margin-bottom:8px;">Devise de paiement</p>
+                    <div class="methods">
+                        <label class="method selected" id="currency-usd">
+                            <input type="radio" name="currency" value="USD" checked onclick="selectCurrency('usd')">
+                            USD
+                        </label>
+                        <label class="method" id="currency-cdf">
+                            <input type="radio" name="currency" value="CDF" onclick="selectCurrency('cdf')">
+                            CDF
+                        </label>
+                    </div>
+
                     <p style="font-size:12px; color:#6b7280; margin-bottom:8px;">Mode de paiement</p>
                     <div class="methods">
                         <label class="method selected" id="method-mm">
@@ -50,7 +62,7 @@
                             Carte bancaire
                         </label>
                     </div>
-                    <button type="submit" class="pay-btn">Payer {{ student['amount_due'] }} USD</button>
+                    <button type="submit" class="pay-btn" id="pay-btn">Payer {{ student['amount_due'] }} USD</button>
                 </form>
             {% endif %}
 
@@ -62,6 +74,25 @@
     </div>
 
     <script>
+        const amountUSD = {{ student['amount_due'] }};
+        const rate = {{ exchange_rate }};
+
+        function selectCurrency(which) {
+            document.getElementById('currency-usd').classList.toggle('selected', which === 'usd');
+            document.getElementById('currency-cdf').classList.toggle('selected', which === 'cdf');
+
+            const display = document.getElementById('amount-display');
+            const btn = document.getElementById('pay-btn');
+            if (which === 'cdf') {
+                const amountCDF = Math.round(amountUSD * rate).toLocaleString('fr-FR');
+                display.textContent = amountCDF + ' CDF';
+                btn.textContent = 'Payer ' + amountCDF + ' CDF';
+            } else {
+                display.textContent = amountUSD + ' USD';
+                btn.textContent = 'Payer ' + amountUSD + ' USD';
+            }
+        }
+
         function select(which) {
             document.getElementById('method-mm').classList.toggle('selected', which === 'mm');
             document.getElementById('method-cb').classList.toggle('selected', which === 'cb');
