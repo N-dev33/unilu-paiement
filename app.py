@@ -370,6 +370,45 @@ def dashboard():
     )
 
 
+PROMOTIONS = ["L1", "L2", "L3", "M1", "M2"]
+DEPARTMENT_ORDER = ["Général", "CEE", "SI", "PE"]
+
+
+@app.route("/dashboard/<promotion>")
+@staff_login_required
+def dashboard_promotion(promotion):
+    """Tableau de bord d'une promotion précise, avec une colonne par département si applicable."""
+    promotion = promotion.upper()
+    if promotion not in PROMOTIONS:
+        abort(404)
+
+    conn = get_db_connection()
+    students = conn.execute(
+        "SELECT * FROM students WHERE level = ? ORDER BY department, name",
+        (promotion,),
+    ).fetchall()
+    conn.close()
+
+    groups = {}
+    for s in students:
+        dept = s["department"] or "Général"
+        groups.setdefault(dept, []).append(s)
+
+    ordered_groups = {d: groups[d] for d in DEPARTMENT_ORDER if d in groups}
+
+    total = len(students)
+    paid_count = sum(1 for s in students if s["paid"])
+
+    return render_template(
+        "dashboard_promotion.html",
+        promotion=promotion,
+        promotions=PROMOTIONS,
+        groups=ordered_groups,
+        total=total,
+        paid_count=paid_count,
+    )
+
+
 @app.route("/verify/<token>")
 @staff_login_required
 def verify(token):

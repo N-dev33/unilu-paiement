@@ -98,6 +98,14 @@
             <a href="{{ url_for('agent_logout') }}" style="font-size:12px; color:#378ade; text-decoration:none;">Se déconnecter</a>
         </div>
 
+        <div style="display:flex; gap:6px; padding: 14px 24px 0; flex-wrap:wrap;">
+            <span style="font-size:12px; padding:6px 14px; border-radius:20px; background:#378ade; color:white; font-weight:600;">Tous</span>
+            {% for p in ['L1', 'L2', 'L3', 'M1', 'M2'] %}
+            <a href="{{ url_for('dashboard_promotion', promotion=p) }}"
+               style="font-size:12px; text-decoration:none; color:#6b7280; padding:6px 14px; border-radius:20px; background:#f4f5f7;">{{ p }}</a>
+            {% endfor %}
+        </div>
+
         <div class="stats-row">
             <div class="stat-card">
                 <div class="label">Étudiants</div>

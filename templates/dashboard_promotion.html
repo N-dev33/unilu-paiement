@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Promotion {{ promotion }} - Faculté de Criminologie</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .dash-wrap {
+            width: 100%;
+            max-width: 1100px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+        }
+        .dash-header {
+            background: #185fa5;
+            color: white;
+            padding: 20px 24px;
+        }
+        .dash-header h1 { font-size: 16px; font-weight: 600; }
+        .dash-header p { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+
+        .promo-tabs {
+            display: flex;
+            gap: 6px;
+            padding: 14px 24px 0;
+            flex-wrap: wrap;
+        }
+        .promo-tabs a {
+            font-size: 12px;
+            text-decoration: none;
+            color: #6b7280;
+            padding: 6px 14px;
+            border-radius: 20px;
+            background: #f4f5f7;
+        }
+        .promo-tabs a.active {
+            background: #378ade;
+            color: white;
+            font-weight: 600;
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 12px;
+            padding: 16px 24px 0;
+        }
+        .stat-card {
+            flex: 1;
+            background: #f4f5f7;
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+        .stat-card .label { font-size: 11px; color: #6b7280; }
+        .stat-card .value { font-size: 20px; font-weight: 600; color: #1f2937; margin-top: 2px; }
+
+        .columns-wrap {
+            display: flex;
+            gap: 16px;
+            padding: 18px 24px 24px;
+            overflow-x: auto;
+        }
+        .dept-column {
+            flex: 1;
+            min-width: 260px;
+            background: #fafafa;
+            border-radius: 12px;
+            border: 1px solid #f0f0f0;
+        }
+        .dept-column-header {
+            padding: 12px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1f2937;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .dept-count {
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 400;
+        }
+        .dept-list {
+            max-height: 480px;
+            overflow-y: auto;
+        }
+        .dept-row {
+            padding: 10px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+        .dept-row .info { min-width: 0; }
+        .dept-row .name { color: #1f2937; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dept-row .matricule { color: #9ca3af; font-size: 10px; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .badge.paid { background: #eaf3de; color: #3b6d11; }
+        .badge.unpaid { background: #fcebeb; color: #a32d2d; }
+
+        .back-link-top {
+            display: inline-block;
+            margin: 14px 0 0 24px;
+            font-size: 12px;
+            color: #378ade;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="dash-wrap">
+        <div class="dash-header">
+            <h1>Promotion {{ promotion }} — Faculté de Criminologie</h1>
+            <p>{{ total }} étudiants · {{ paid_count }} à jour · {{ total - paid_count }} en retard</p>
+        </div>
+
+        <div class="promo-tabs">
+            <a href="{{ url_for('dashboard') }}">Tous</a>
+            {% for p in promotions %}
+            <a href="{{ url_for('dashboard_promotion', promotion=p) }}" class="{{ 'active' if p == promotion else '' }}">{{ p }}</a>
+            {% endfor %}
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="label">Étudiants</div>
+                <div class="value">{{ total }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">À jour</div>
+                <div class="value">{{ paid_count }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">En retard</div>
+                <div class="value">{{ total - paid_count }}</div>
+            </div>
+        </div>
+
+        <div class="columns-wrap">
+            {% for dept, students in groups.items() %}
+            <div class="dept-column">
+                <div class="dept-column-header">
+                    <span>{{ dept }}</span>
+                    <span class="dept-count">{{ students|length }} étudiants</span>
+                </div>
+                <div class="dept-list">
+                    {% for s in students %}
+                    <div class="dept-row">
+                        <div class="info">
+                            <div class="name">{{ s['name'] }}</div>
+                            <div class="matricule">{{ s['matricule'] }}</div>
+                        </div>
+                        {% if s['paid'] %}
+                        <span class="badge paid">Payé</span>
+                        {% else %}
+                        <span class="badge unpaid">Non payé</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>
