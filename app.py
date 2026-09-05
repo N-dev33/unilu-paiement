@@ -3,6 +3,10 @@ import sqlite3
 import os
 import secrets
 import io
+import hmac
+import hashlib
+import base64
+import json
 from datetime import datetime
 from functools import wraps
 from werkzeug.utils import secure_filename
@@ -11,6 +15,42 @@ import qrcode
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "cle-secrete-demo-a-remplacer-en-production")
+
+SIGNING_KEY = app.secret_key.encode()
+
+
+def sign_receipt(payload: dict) -> str:
+    """
+    Encode et signe les données essentielles d'un reçu (HMAC-SHA256).
+    Le token résultant contient les données ET leur preuve d'authenticité —
+    toute modification, même minime, invalide la signature.
+    """
+    raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+    b64 = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+    signature = hmac.new(SIGNING_KEY, b64.encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{b64}.{signature}"
+
+
+def verify_receipt_signature(token: str):
+    """
+    Vérifie la signature d'un token de reçu SANS avoir besoin de la base de données.
+    Retourne les données du paiement si la signature est valide, sinon None.
+    """
+    try:
+        b64, signature = token.rsplit(".", 1)
+    except ValueError:
+        return None
+
+    expected_signature = hmac.new(SIGNING_KEY, b64.encode(), hashlib.sha256).hexdigest()[:32]
+    if not hmac.compare_digest(signature, expected_signature):
+        return None
+
+    try:
+        padding = "=" * (-len(b64) % 4)
+        raw = base64.urlsafe_b64decode(b64 + padding)
+        return json.loads(raw)
+    except Exception:
+        return None
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "unilu.db")
 QR_FOLDER = os.path.join(os.path.dirname(__file__), "static", "qrcodes")
@@ -401,15 +441,21 @@ def pay(student_id):
     else:
         amount_paid = amount_cdf
 
-    token = secrets.token_urlsafe(24)
     paid_at = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     cur = conn.execute("""
-        INSERT INTO payments (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at, qr_token)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at, token))
-    conn.commit()
+        INSERT INTO payments (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at))
     payment_id = cur.lastrowid
+
+    # Le token contient les données du paiement, signées — infalsifiable sans la clé secrète du serveur
+    token = sign_receipt({
+        "pid": payment_id, "sid": student_id, "code": item_code,
+        "amt": amount_cdf, "at": paid_at,
+    })
+    conn.execute("UPDATE payments SET qr_token = ? WHERE id = ?", (token, payment_id))
+    conn.commit()
     conn.close()
 
     generate_qr(token, payment_id)
@@ -614,15 +660,20 @@ def claim_approve(claim_id):
         abort(404)
 
     amount_cdf = dict((c, a) for c, _, a in FEE_ITEMS)[claim["item_code"]]
-    token = secrets.token_urlsafe(24)
     paid_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     staff = conn.execute("SELECT name FROM staff WHERE id = ?", (session["staff_id"],)).fetchone()
 
     cur = conn.execute("""
-        INSERT INTO payments (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at, qr_token)
-        VALUES (?, ?, ?, ?, 'CDF', ?, 'reclamation_validee', ?, ?)
-    """, (claim["student_id"], claim["item_code"], claim["item_label"], amount_cdf, amount_cdf, paid_at, token))
+        INSERT INTO payments (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at)
+        VALUES (?, ?, ?, ?, 'CDF', ?, 'reclamation_validee', ?)
+    """, (claim["student_id"], claim["item_code"], claim["item_label"], amount_cdf, amount_cdf, paid_at))
     payment_id = cur.lastrowid
+
+    token = sign_receipt({
+        "pid": payment_id, "sid": claim["student_id"], "code": claim["item_code"],
+        "amt": amount_cdf, "at": paid_at,
+    })
+    conn.execute("UPDATE payments SET qr_token = ? WHERE id = ?", (token, payment_id))
 
     generate_qr(token, payment_id)
 
@@ -777,9 +828,15 @@ def dashboard_promotion(promotion):
 def verify(token):
     """
     Page côté agent : ce que le scan du QR code affiche.
-    Montre l'identité de l'étudiant pour vérification visuelle,
-    bloque toute réutilisation du même reçu (anti-fraude), et trace l'agent qui a scanné.
+    Étape 1 (sans base de données) : vérifie la signature cryptographique du reçu —
+    toute modification du contenu invalide immédiatement le token.
+    Étape 2 (avec base de données) : vérifie que ce reçu n'a pas déjà été scanné,
+    et affiche l'identité de l'étudiant pour vérification visuelle.
     """
+    payload = verify_receipt_signature(token)
+    if payload is None:
+        return render_template("verify.html", status="invalid")
+
     conn = get_db_connection()
     payment = conn.execute("SELECT * FROM payments WHERE qr_token = ?", (token,)).fetchone()
 
