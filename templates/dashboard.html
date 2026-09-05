@@ -45,7 +45,7 @@
             font-size: 13px;
         }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+        table { width: 100%; min-width: 640px; border-collapse: collapse; margin-top: 14px; }
         thead th {
             text-align: left;
             font-size: 11px;
@@ -136,6 +136,7 @@
             </a>
         </div>
 
+        <div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
         <table>
             <thead>
                 <tr>
@@ -184,6 +185,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 </body>
 </html>
