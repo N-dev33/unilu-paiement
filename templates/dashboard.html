@@ -178,6 +178,7 @@
                     <td>{{ "{:,}".format(s['remaining_cdf']).replace(',', ' ') }} FC</td>
                     <td class="row-actions">
                         <a href="{{ url_for('upload_photo', student_id=s['id']) }}">Photo</a>
+                        <a href="{{ url_for('reset_password', student_id=s['id']) }}">Mot de passe</a>
                         {% if s['paid_cdf'] > 0 %}
                         <a href="{{ url_for('student_payments', student_id=s['id']) }}">Paiements</a>
                         {% endif %}

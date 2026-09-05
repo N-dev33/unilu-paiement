@@ -64,6 +64,10 @@
                 <p style="text-align:center; font-size:12px; color:#6b7280; margin-top:14px;">
                     Comparez le visage de l'étudiant présent à la photo ci-dessus.
                 </p>
+                <a href="{{ url_for('reset_password', student_id=student['id']) }}"
+                   style="display:block; text-align:center; margin-top:10px; font-size:12px; color:#378ade; text-decoration:none;">
+                    Réinitialiser son mot de passe
+                </a>
             </div>
             {% endif %}
 

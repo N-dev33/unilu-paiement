@@ -411,6 +411,29 @@ def student_payments(student_id):
     )
 
 
+@app.route("/students/<int:student_id>/reset-password", methods=["GET", "POST"])
+@staff_login_required
+def reset_password(student_id):
+    """Réinitialise le mot de passe d'un étudiant (nouveau mot de passe généré, affiché une seule fois)."""
+    conn = get_db_connection()
+    student = conn.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone()
+    if not student:
+        conn.close()
+        abort(404)
+
+    new_password = None
+    if request.method == "POST":
+        new_password = secrets.token_hex(3)  # ex: "a1b2c3"
+        conn.execute(
+            "UPDATE students SET password_hash = ? WHERE id = ?",
+            (generate_password_hash(new_password), student_id),
+        )
+        conn.commit()
+
+    conn.close()
+    return render_template("reset_password.html", student=student, new_password=new_password)
+
+
 @app.route("/students/<int:student_id>/photo", methods=["GET", "POST"])
 @staff_login_required
 def upload_photo(student_id):
