@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Réclamations - Faculté de Criminologie</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .dash-wrap {
+            width: 100%;
+            max-width: 720px;
+            background: #fbfbfc;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+        }
+        .dash-header {
+            background: #185fa5;
+            color: white;
+            padding: 20px 24px;
+        }
+        .dash-header h1 { font-size: 16px; font-weight: 600; }
+        .dash-header p { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+
+        .claim-card {
+            margin: 14px 24px;
+            padding: 14px;
+            border-radius: 10px;
+            background: #e6e9ed;
+        }
+        .claim-card .top-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+        .claim-card .meta { font-size: 11px; color: #6b7280; margin-bottom: 8px; }
+        .claim-card .ref { font-size: 12px; color: #1f2937; margin-bottom: 4px; }
+        .claim-card .message { font-size: 12px; color: #6b7280; font-style: italic; margin-bottom: 10px; }
+
+        .claim-actions { display: flex; gap: 8px; }
+        .btn-approve, .btn-reject {
+            flex: 1;
+            border: none;
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-approve { background: #3b6d11; color: white; }
+        .btn-reject { background: #fcebeb; color: #a32d2d; }
+
+        .reject-form { display: flex; gap: 6px; flex: 1; }
+        .reject-form input {
+            flex: 1;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 6px 8px;
+            font-size: 11px;
+        }
+
+        .resolved-row {
+            margin: 8px 24px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: #f4f5f7;
+            font-size: 12px;
+        }
+        .status-approved { color: #3b6d11; font-weight: 600; }
+        .status-rejected { color: #a32d2d; font-weight: 600; }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            padding: 16px 24px 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dash-wrap">
+        <div class="dash-header">
+            <h1>Réclamations de paiement</h1>
+            <p>{{ pending|length }} en attente de traitement</p>
+        </div>
+
+        <div style="padding: 10px 24px 0; text-align: right;">
+            <a href="{{ url_for('dashboard') }}" style="font-size:12px; color:#378ade; text-decoration:none;">Retour au tableau de bord</a>
+        </div>
+
+        <div class="section-title">En attente</div>
+        {% if pending %}
+        {% for c in pending %}
+        <div class="claim-card">
+            <div class="top-row">
+                <span>{{ c['student_name'] }}</span>
+                <span>{{ c['item_label'] }}</span>
+            </div>
+            <div class="meta">{{ c['student_matricule'] }} · signalé le {{ c['created_at'] }}</div>
+            <div class="ref">Référence : <strong>{{ c['reference'] }}</strong></div>
+            {% if c['message'] %}
+            <div class="message">« {{ c['message'] }} »</div>
+            {% endif %}
+            <div class="claim-actions">
+                <form action="{{ url_for('claim_approve', claim_id=c['id']) }}" method="POST" style="flex:1;">
+                    <button type="submit" class="btn-approve" style="width:100%;">Valider le paiement</button>
+                </form>
+                <form action="{{ url_for('claim_reject', claim_id=c['id']) }}" method="POST" class="reject-form">
+                    <input type="text" name="note" placeholder="Motif du rejet">
+                    <button type="submit" class="btn-reject">Rejeter</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="padding: 0 24px 16px; font-size:13px; color:#9ca3af;">Aucune réclamation en attente.</p>
+        {% endif %}
+
+        {% if resolved %}
+        <div class="section-title">Traitées récemment</div>
+        {% for c in resolved %}
+        <div class="resolved-row">
+            <strong>{{ c['student_name'] }}</strong> — {{ c['item_label'] }} —
+            {% if c['status'] == 'approved' %}
+            <span class="status-approved">Validée</span>
+            {% else %}
+            <span class="status-rejected">Rejetée{% if c['review_note'] %} ({{ c['review_note'] }}){% endif %}</span>
+            {% endif %}
+            <span style="color:#9ca3af;"> · par {{ c['reviewed_by'] }} le {{ c['reviewed_at'] }}</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <div style="height: 16px;"></div>
+    </div>
+</body>
+</html>

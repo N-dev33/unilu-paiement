@@ -115,6 +115,9 @@
                     Payer {{ next_item['label'] }} — {{ "{:,}".format(next_item['amount']).replace(',', ' ') }} FC
                 </button>
             </form>
+            <a href="{{ url_for('claim_new') }}" style="display:block; text-align:center; margin-top:10px; font-size:11px; color:#9ca3af; text-decoration:none;">
+                J'ai déjà payé mais ça n'apparaît pas ?
+            </a>
             {% else %}
             <p style="text-align:center; font-size:13px; color:#3b6d11; font-weight:600; margin-bottom:12px;">
                 Tous les frais de l'année sont réglés — vous êtes à jour !

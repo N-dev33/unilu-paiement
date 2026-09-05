@@ -110,6 +110,23 @@ def init_db():
             FOREIGN KEY (student_id) REFERENCES students (id)
         )
     """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS claims (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            item_code TEXT NOT NULL,
+            item_label TEXT NOT NULL,
+            reference TEXT,
+            message TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT,
+            reviewed_by TEXT,
+            reviewed_at TEXT,
+            review_note TEXT,
+            FOREIGN KEY (student_id) REFERENCES students (id)
+        )
+    """)
     conn.commit()
 
     # Migration : ajout de colonnes sur une base déjà existante (ignore si déjà présentes)
@@ -243,6 +260,54 @@ def index():
     if session.get("student_id"):
         return redirect(url_for("pay_screen", student_id=session["student_id"]))
     return redirect(url_for("login"))
+
+
+@app.route("/claim/new", methods=["GET", "POST"])
+@student_login_required
+def claim_new():
+    """
+    Réclamation étudiant : "j'ai payé mais ça n'apparaît pas".
+    Utile en cas de coupure réseau ou de bug côté agrégateur pendant la transaction.
+    """
+    student_id = session["student_id"]
+    conn = get_db_connection()
+    student = conn.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone()
+
+    paid_codes = {
+        row["item_code"]
+        for row in conn.execute(
+            "SELECT item_code FROM payments WHERE student_id = ?", (student_id,)
+        ).fetchall()
+    }
+
+    next_item = None
+    for code, label, amount in FEE_ITEMS:
+        if code not in paid_codes:
+            next_item = {"code": code, "label": label, "amount": amount}
+            break
+
+    error = None
+    submitted = False
+
+    if request.method == "POST":
+        if not next_item:
+            error = "Tous vos frais sont déjà réglés."
+        else:
+            reference = request.form.get("reference", "").strip()
+            message = request.form.get("message", "").strip()
+            if not reference:
+                error = "Le numéro de référence de la transaction est obligatoire."
+            else:
+                created_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+                conn.execute("""
+                    INSERT INTO claims (student_id, item_code, item_label, reference, message, status, created_at)
+                    VALUES (?, ?, ?, ?, ?, 'pending', ?)
+                """, (student_id, next_item["code"], next_item["label"], reference, message, created_at))
+                conn.commit()
+                submitted = True
+
+    conn.close()
+    return render_template("claim_new.html", student=student, next_item=next_item, error=error, submitted=submitted)
 
 
 @app.route("/pay-screen/<int:student_id>")
@@ -518,6 +583,73 @@ def add_student():
     )
 
 
+@app.route("/claims")
+@staff_login_required
+def claims_list():
+    """Liste des réclamations de paiement en attente de traitement par un agent."""
+    conn = get_db_connection()
+    pending = conn.execute("""
+        SELECT c.*, s.name AS student_name, s.matricule AS student_matricule
+        FROM claims c JOIN students s ON s.id = c.student_id
+        WHERE c.status = 'pending' ORDER BY c.created_at ASC
+    """).fetchall()
+    resolved = conn.execute("""
+        SELECT c.*, s.name AS student_name, s.matricule AS student_matricule
+        FROM claims c JOIN students s ON s.id = c.student_id
+        WHERE c.status != 'pending' ORDER BY c.reviewed_at DESC LIMIT 20
+    """).fetchall()
+    conn.close()
+    return render_template("claims_list.html", pending=pending, resolved=resolved)
+
+
+@app.route("/claims/<int:claim_id>/approve", methods=["POST"])
+@staff_login_required
+def claim_approve(claim_id):
+    """Approuve une réclamation : enregistre le paiement correspondant comme validé manuellement."""
+    conn = get_db_connection()
+    claim = conn.execute("SELECT * FROM claims WHERE id = ?", (claim_id,)).fetchone()
+    if not claim or claim["status"] != "pending":
+        conn.close()
+        abort(404)
+
+    amount_cdf = dict((c, a) for c, _, a in FEE_ITEMS)[claim["item_code"]]
+    token = secrets.token_urlsafe(24)
+    paid_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    staff = conn.execute("SELECT name FROM staff WHERE id = ?", (session["staff_id"],)).fetchone()
+
+    cur = conn.execute("""
+        INSERT INTO payments (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at, qr_token)
+        VALUES (?, ?, ?, ?, 'CDF', ?, 'reclamation_validee', ?, ?)
+    """, (claim["student_id"], claim["item_code"], claim["item_label"], amount_cdf, amount_cdf, paid_at, token))
+    payment_id = cur.lastrowid
+
+    generate_qr(token, payment_id)
+
+    conn.execute("""
+        UPDATE claims SET status = 'approved', reviewed_by = ?, reviewed_at = ? WHERE id = ?
+    """, (staff["name"] if staff else "Agent", paid_at, claim_id))
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for("claims_list"))
+
+
+@app.route("/claims/<int:claim_id>/reject", methods=["POST"])
+@staff_login_required
+def claim_reject(claim_id):
+    """Rejette une réclamation, avec une note explicative."""
+    note = request.form.get("note", "").strip()
+    conn = get_db_connection()
+    staff = conn.execute("SELECT name FROM staff WHERE id = ?", (session["staff_id"],)).fetchone()
+    reviewed_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    conn.execute("""
+        UPDATE claims SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, review_note = ? WHERE id = ?
+    """, (staff["name"] if staff else "Agent", reviewed_at, note, claim_id))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("claims_list"))
+
+
 @app.route("/verify-manual")
 @staff_login_required
 def verify_manual():
@@ -571,6 +703,9 @@ def dashboard():
 
     total = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
     paid_count = sum(1 for s in students if s["status"] == "À jour")
+    pending_claims_count = conn.execute(
+        "SELECT COUNT(*) FROM claims WHERE status = 'pending'"
+    ).fetchone()[0]
     conn.close()
 
     return render_template(
@@ -578,6 +713,7 @@ def dashboard():
         students=students,
         total=total,
         paid_count=paid_count,
+        pending_claims_count=pending_claims_count,
         query=query,
     )
 

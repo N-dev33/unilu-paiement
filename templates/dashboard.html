@@ -100,6 +100,9 @@
         </div>
         <div style="padding: 10px 24px 0; text-align: right;">
             <a href="{{ url_for('verify_manual') }}" style="font-size:12px; color:#378ade; text-decoration:none; margin-right:14px;">Recherche manuelle</a>
+            <a href="{{ url_for('claims_list') }}" style="font-size:12px; color:#378ade; text-decoration:none; margin-right:14px;">
+                Réclamations{% if pending_claims_count > 0 %} <span style="background:#a32d2d; color:white; border-radius:10px; padding:1px 6px; font-size:10px;">{{ pending_claims_count }}</span>{% endif %}
+            </a>
             <a href="{{ url_for('agent_logout') }}" style="font-size:12px; color:#378ade; text-decoration:none;">Se déconnecter</a>
         </div>
 

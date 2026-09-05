@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signaler un paiement</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="phone">
+        <div class="header">
+            <div class="icon">U</div>
+            <div>
+                <h1>Université de Lubumbashi</h1>
+                <p>Signaler un paiement non reconnu</p>
+            </div>
+        </div>
+
+        <div class="content">
+            {% if submitted %}
+            <div style="background:#eaf3de; border-radius:10px; padding:14px; margin-bottom:18px;">
+                <p style="font-size:13px; font-weight:600; color:#3b6d11; margin-bottom:6px;">
+                    Réclamation envoyée
+                </p>
+                <p style="font-size:12px; color:#1f2937;">
+                    Un agent va vérifier votre paiement et le valider si tout est en ordre. Cela peut prendre un certain temps.
+                </p>
+            </div>
+            <a class="back-link" href="{{ url_for('pay_screen', student_id=student['id']) }}">Retour à mon espace</a>
+
+            {% elif not next_item %}
+            <p style="text-align:center; font-size:13px; color:#3b6d11; font-weight:600;">
+                Tous vos frais de l'année sont déjà réglés — rien à signaler.
+            </p>
+            <a class="back-link" href="{{ url_for('pay_screen', student_id=student['id']) }}">Retour à mon espace</a>
+
+            {% else %}
+            <p style="font-size:12px; color:#6b7280; margin-bottom:14px;">
+                Si vous avez effectué le paiement de <strong>{{ next_item['label'] }}</strong> ({{ "{:,}".format(next_item['amount']).replace(',', ' ') }} FC) mais qu'il n'apparaît pas dans votre compte,
+                indiquez la référence de la transaction fournie par votre opérateur mobile money ou votre banque.
+            </p>
+
+            {% if error %}
+            <p style="font-size:12px; color:#a32d2d; margin-bottom:12px;">{{ error }}</p>
+            {% endif %}
+
+            <form method="POST">
+                <p style="font-size:12px; color:#6b7280; margin-bottom:4px;">Numéro de référence de la transaction</p>
+                <input type="text" name="reference" placeholder="Ex: MP240912.1234.A56789" required
+                       style="width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:13px; margin-bottom:14px;">
+
+                <p style="font-size:12px; color:#6b7280; margin-bottom:4px;">Message (optionnel)</p>
+                <textarea name="message" rows="3" placeholder="Détails utiles (heure du paiement, opérateur...)"
+                          style="width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:13px; margin-bottom:18px; resize:vertical;"></textarea>
+
+                <button type="submit" class="pay-btn">Envoyer la réclamation</button>
+            </form>
+            <a class="back-link" href="{{ url_for('pay_screen', student_id=student['id']) }}">Annuler</a>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
