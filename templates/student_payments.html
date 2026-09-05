@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paiements de {{ student['name'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="phone">
+        <div class="header">
+            <div class="icon">U</div>
+            <div>
+                <h1>Université de Lubumbashi</h1>
+                <p>Historique des paiements</p>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="student-card">
+                {% set parts = student['name'].split(' ') %}
+                <div class="avatar">{{ parts[0][0] }}{{ parts[1][0] if parts|length > 1 else '' }}</div>
+                <div>
+                    <div class="name">{{ student['name'] }}</div>
+                    <div class="meta">{{ student['matricule'] }} · {{ student['level'] }}{% if student['department'] %} · {{ student['department'] }}{% endif %}</div>
+                </div>
+            </div>
+
+            <div class="balance-block" style="text-align:center; margin:16px 0; padding:14px; background:#f4f5f7; border-radius:10px;">
+                <div style="font-size:12px; color:#6b7280;">Solde restant</div>
+                <div style="font-size:22px; font-weight:600; color:#1f2937;">{{ "{:,}".format(remaining_cdf).replace(',', ' ') }} FC</div>
+            </div>
+
+            {% if payments %}
+            <div class="receipt-details">
+                {% for p in payments %}
+                <div class="row" style="align-items:center;">
+                    <span>
+                        {{ p['item_label'] }}<br>
+                        <span style="font-size:10px; color:#9ca3af;">{{ p['paid_at'] }}</span>
+                    </span>
+                    <span style="text-align:right;">
+                        {% if p['currency'] == 'USD' %}{{ p['amount_paid'] }} USD{% else %}{{ "{:,}".format(p['amount_paid']|int).replace(',', ' ') }} FC{% endif %}<br>
+                        <a href="{{ url_for('receipt', payment_id=p['id']) }}" style="font-size:11px; color:#378ade; text-decoration:none;">Voir le reçu</a>
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="text-align:center; font-size:13px; color:#9ca3af;">Aucun paiement enregistré pour l'instant.</p>
+            {% endif %}
+
+            <a class="back-link" href="{{ url_for('dashboard') }}">Retour au tableau de bord</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -110,6 +110,7 @@
         }
         .badge.paid { background: #eaf3de; color: #3b6d11; }
         .badge.unpaid { background: #fcebeb; color: #a32d2d; }
+        .badge.partiel { background: #faeeda; color: #854f0b; }
 
         .back-link-top {
             display: inline-block;
@@ -161,10 +162,12 @@
                     <div class="dept-row">
                         <div class="info">
                             <div class="name">{{ s['name'] }}</div>
-                            <div class="matricule">{{ s['matricule'] }}</div>
+                            <div class="matricule">{{ s['matricule'] }} · {{ "{:,}".format(s['remaining_cdf']).replace(',', ' ') }} FC restant</div>
                         </div>
-                        {% if s['paid'] %}
-                        <span class="badge paid">Payé</span>
+                        {% if s['status'] == 'À jour' %}
+                        <span class="badge paid">À jour</span>
+                        {% elif s['status'] == 'Partiel' %}
+                        <span class="badge partiel">Partiel</span>
                         {% else %}
                         <span class="badge unpaid">Non payé</span>
                         {% endif %}

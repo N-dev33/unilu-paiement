@@ -69,6 +69,7 @@
         }
         .badge.paid { background: #eaf3de; color: #3b6d11; }
         .badge.unpaid { background: #fcebeb; color: #a32d2d; }
+        .badge.partiel { background: #faeeda; color: #854f0b; }
 
         .row-actions a {
             font-size: 12px;
@@ -140,7 +141,7 @@
                     <th>Niveau</th>
                     <th>Département</th>
                     <th>Statut</th>
-                    <th>Date de paiement</th>
+                    <th>Solde restant</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -161,17 +162,19 @@
                     <td>{{ s['level'] }}</td>
                     <td>{{ s['department'] or '—' }}</td>
                     <td>
-                        {% if s['paid'] %}
-                        <span class="badge paid">Payé</span>
+                        {% if s['status'] == 'À jour' %}
+                        <span class="badge paid">À jour</span>
+                        {% elif s['status'] == 'Partiel' %}
+                        <span class="badge partiel">Partiel</span>
                         {% else %}
                         <span class="badge unpaid">Non payé</span>
                         {% endif %}
                     </td>
-                    <td>{{ s['paid_at'] or '—' }}</td>
+                    <td>{{ "{:,}".format(s['remaining_cdf']).replace(',', ' ') }} FC</td>
                     <td class="row-actions">
                         <a href="{{ url_for('upload_photo', student_id=s['id']) }}">Photo</a>
-                        {% if s['paid'] %}
-                        <a href="{{ url_for('receipt', student_id=s['id']) }}">Reçu</a>
+                        {% if s['paid_cdf'] > 0 %}
+                        <a href="{{ url_for('student_payments', student_id=s['id']) }}">Paiements</a>
                         {% endif %}
                     </td>
                 </tr>

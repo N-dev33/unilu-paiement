@@ -21,11 +21,45 @@ ALLOWED_PHOTO_EXT = {"png", "jpg", "jpeg"}
 # Taux de change indicatif — à ajuster périodiquement (marché parallèle/officiel fluctuant)
 EXCHANGE_RATE_CDF_PER_USD = 2290
 
+# Structure réelle des frais académiques UNILU : 3 tranches + frais connexes
+FEE_ITEMS = [
+    ("tranche1", "Tranche 1", 350000),
+    ("tranche2", "Tranche 2", 350000),
+    ("tranche3", "Tranche 3", 350000),
+    ("connexes", "Frais connexes", 250000),
+]
+TOTAL_DUE_CDF = sum(amount for _, _, amount in FEE_ITEMS)  # 1 300 000 FC
+
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def fetch_students_with_balance(conn, where_sql="", params=()):
+    """Récupère des étudiants avec leur montant payé (CDF) et solde restant calculés."""
+    query = f"""
+        SELECT s.*, COALESCE(SUM(p.amount_cdf), 0) AS paid_cdf
+        FROM students s
+        LEFT JOIN payments p ON p.student_id = s.id
+        {where_sql}
+        GROUP BY s.id
+        ORDER BY paid_cdf ASC, s.name ASC
+    """
+    rows = conn.execute(query, params).fetchall()
+    results = []
+    for row in rows:
+        d = dict(row)
+        d["remaining_cdf"] = TOTAL_DUE_CDF - d["paid_cdf"]
+        if d["paid_cdf"] == 0:
+            d["status"] = "Non payé"
+        elif d["remaining_cdf"] <= 0:
+            d["status"] = "À jour"
+        else:
+            d["status"] = "Partiel"
+        results.append(d)
+    return results
 
 
 def init_db():
@@ -56,6 +90,24 @@ def init_db():
             username TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             name TEXT NOT NULL
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            item_code TEXT NOT NULL,
+            item_label TEXT NOT NULL,
+            amount_cdf INTEGER NOT NULL,
+            currency TEXT NOT NULL,
+            amount_paid INTEGER NOT NULL,
+            method TEXT,
+            paid_at TEXT,
+            qr_token TEXT UNIQUE,
+            scanned_at TEXT,
+            scanned_by TEXT,
+            FOREIGN KEY (student_id) REFERENCES students (id)
         )
     """)
     conn.commit()
@@ -98,11 +150,11 @@ def init_db():
     conn.close()
 
 
-def generate_qr(token, student_id):
+def generate_qr(token, payment_id):
     """Génère l'image QR pointant vers la page de vérification de l'agent."""
     verify_url = url_for("verify", token=token, _external=True)
     img = qrcode.make(verify_url)
-    filename = f"receipt_{student_id}.png"
+    filename = f"receipt_{payment_id}.png"
     img.save(os.path.join(QR_FOLDER, filename))
     return filename
 
@@ -201,21 +253,55 @@ def pay_screen(student_id):
         abort(403)
     conn = get_db_connection()
     student = conn.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone()
-    conn.close()
     if not student:
+        conn.close()
         abort(404)
-    return render_template("index.html", student=student, exchange_rate=EXCHANGE_RATE_CDF_PER_USD)
+
+    paid_codes = {
+        row["item_code"]
+        for row in conn.execute(
+            "SELECT item_code FROM payments WHERE student_id = ?", (student_id,)
+        ).fetchall()
+    }
+    conn.close()
+
+    items_status = []
+    next_payable_code = None
+    for code, label, amount in FEE_ITEMS:
+        is_paid = code in paid_codes
+        if not is_paid and next_payable_code is None:
+            next_payable_code = code
+        items_status.append({"code": code, "label": label, "amount": amount, "paid": is_paid})
+
+    total_paid_cdf = sum(item["amount"] for item in items_status if item["paid"])
+    remaining_cdf = TOTAL_DUE_CDF - total_paid_cdf
+
+    return render_template(
+        "index.html",
+        student=student,
+        items_status=items_status,
+        next_payable_code=next_payable_code,
+        total_due_cdf=TOTAL_DUE_CDF,
+        total_paid_cdf=total_paid_cdf,
+        remaining_cdf=remaining_cdf,
+        exchange_rate=EXCHANGE_RATE_CDF_PER_USD,
+    )
 
 
 @app.route("/pay/<int:student_id>", methods=["POST"])
 @student_login_required
 def pay(student_id):
-    """Simule le paiement : marque l'étudiant comme payé et génère son reçu QR."""
+    """Enregistre le paiement d'UN élément de frais (tranche ou frais connexes), dans l'ordre imposé."""
     if session["student_id"] != student_id:
         abort(403)
 
     method = request.form.get("method", "mobile_money")
-    currency = request.form.get("currency", "USD")
+    currency = request.form.get("currency", "CDF")
+    item_code = request.form.get("item_code", "")
+
+    valid_codes = {code for code, _, _ in FEE_ITEMS}
+    if item_code not in valid_codes:
+        abort(400)
 
     conn = get_db_connection()
     student = conn.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone()
@@ -223,42 +309,106 @@ def pay(student_id):
         conn.close()
         abort(404)
 
+    paid_codes = {
+        row["item_code"]
+        for row in conn.execute(
+            "SELECT item_code FROM payments WHERE student_id = ?", (student_id,)
+        ).fetchall()
+    }
+
+    # Vérifie que c'est bien le prochain élément attendu dans l'ordre (tranche1 -> tranche2 -> tranche3 -> connexes)
+    next_expected = None
+    for code, _, _ in FEE_ITEMS:
+        if code not in paid_codes:
+            next_expected = code
+            break
+
+    if item_code != next_expected:
+        conn.close()
+        abort(400)
+
+    item_label = dict((c, l) for c, l, _ in FEE_ITEMS)[item_code]
+    amount_cdf = dict((c, a) for c, _, a in FEE_ITEMS)[item_code]
+
+    if currency == "USD":
+        amount_paid = round(amount_cdf / EXCHANGE_RATE_CDF_PER_USD, 2)
+    else:
+        amount_paid = amount_cdf
+
     token = secrets.token_urlsafe(24)
     paid_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    amount_local_paid = None
-    if currency == "CDF":
-        amount_local_paid = round(student["amount_due"] * EXCHANGE_RATE_CDF_PER_USD)
 
-    conn.execute("""
-        UPDATE students
-        SET paid = 1, paid_at = ?, payment_method = ?, qr_token = ?, scanned_at = NULL,
-            payment_currency = ?, amount_local_paid = ?
-        WHERE id = ?
-    """, (paid_at, method, token, currency, amount_local_paid, student_id))
+    cur = conn.execute("""
+        INSERT INTO payments (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at, qr_token)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at, token))
     conn.commit()
+    payment_id = cur.lastrowid
     conn.close()
 
-    generate_qr(token, student_id)
+    generate_qr(token, payment_id)
 
-    return redirect(url_for("receipt", student_id=student_id))
+    return redirect(url_for("receipt", payment_id=payment_id))
 
 
-@app.route("/receipt/<int:student_id>")
-def receipt(student_id):
+@app.route("/receipt/<int:payment_id>")
+def receipt(payment_id):
     """
-    Affiche le reçu numérique avec le QR code.
-    Accessible par l'étudiant concerné OU par un agent connecté (consultation depuis le tableau de bord).
+    Affiche le reçu numérique d'UN paiement précis (une tranche ou les frais connexes), avec son QR code.
+    Accessible par l'étudiant concerné OU par un agent connecté.
     """
-    if session.get("student_id") != student_id and not session.get("staff_id"):
+    conn = get_db_connection()
+    payment = conn.execute("SELECT * FROM payments WHERE id = ?", (payment_id,)).fetchone()
+    if not payment:
+        conn.close()
+        abort(404)
+
+    student = conn.execute("SELECT * FROM students WHERE id = ?", (payment["student_id"],)).fetchone()
+
+    if session.get("student_id") != student["id"] and not session.get("staff_id"):
+        conn.close()
         return redirect(url_for("login", next=request.path))
 
+    paid_total_cdf = conn.execute(
+        "SELECT COALESCE(SUM(amount_cdf), 0) FROM payments WHERE student_id = ?", (student["id"],)
+    ).fetchone()[0]
+    conn.close()
+
+    remaining_cdf = TOTAL_DUE_CDF - paid_total_cdf
+    qr_filename = f"receipt_{payment_id}.png"
+
+    return render_template(
+        "receipt.html",
+        payment=payment,
+        student=student,
+        qr_filename=qr_filename,
+        remaining_cdf=remaining_cdf,
+    )
+
+
+@app.route("/students/<int:student_id>/payments")
+@staff_login_required
+def student_payments(student_id):
+    """Historique des paiements d'un étudiant (vue agent), avec accès à chaque reçu."""
     conn = get_db_connection()
     student = conn.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone()
-    conn.close()
-    if not student or not student["paid"]:
+    if not student:
+        conn.close()
         abort(404)
-    qr_filename = f"receipt_{student_id}.png"
-    return render_template("receipt.html", student=student, qr_filename=qr_filename)
+    payments = conn.execute(
+        "SELECT * FROM payments WHERE student_id = ? ORDER BY id", (student_id,)
+    ).fetchall()
+    paid_total_cdf = sum(p["amount_cdf"] for p in payments)
+    conn.close()
+    remaining_cdf = TOTAL_DUE_CDF - paid_total_cdf
+
+    return render_template(
+        "student_payments.html",
+        student=student,
+        payments=payments,
+        remaining_cdf=remaining_cdf,
+        total_due_cdf=TOTAL_DUE_CDF,
+    )
 
 
 @app.route("/students/<int:student_id>/photo", methods=["GET", "POST"])
@@ -301,13 +451,15 @@ def add_student():
     if request.method == "POST":
         matricule = request.form.get("matricule", "").strip()
         name = request.form.get("name", "").strip()
-        level = request.form.get("level", "").strip()
-        amount_due = request.form.get("amount_due", "").strip()
+        level = request.form.get("level", "").strip().upper()
+        department = request.form.get("department", "").strip() or None
 
-        if not matricule or not name or not level or not amount_due:
-            error = "Tous les champs sont obligatoires."
-        elif not amount_due.isdigit():
-            error = "Le montant doit être un nombre entier."
+        if not matricule or not name or not level:
+            error = "Le matricule, le nom et le niveau sont obligatoires."
+        elif level not in PROMOTIONS:
+            error = "Niveau invalide (L1, L2, L3, M1 ou M2)."
+        elif level != "L1" and department not in ("CEE", "SI", "PE"):
+            error = "Un département (CEE, SI ou Protection de l'enfant) est requis à partir de L2."
         else:
             conn = get_db_connection()
             existing = conn.execute(
@@ -320,15 +472,16 @@ def add_student():
             else:
                 generated_password = secrets.token_hex(3)  # ex: "a1b2c3", facile à communiquer
                 conn.execute("""
-                    INSERT INTO students (matricule, password_hash, name, faculty, level, amount_due, paid)
-                    VALUES (?, ?, ?, ?, ?, ?, 0)
+                    INSERT INTO students (matricule, password_hash, name, faculty, level, department, amount_due, paid)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
                 """, (
                     matricule,
                     generate_password_hash(generated_password),
                     name,
                     "Faculté de Criminologie",
                     level,
-                    int(amount_due),
+                    department,
+                    TOTAL_DUE_CDF,
                 ))
                 conn.commit()
                 created_student = matricule
@@ -345,20 +498,19 @@ def add_student():
 @app.route("/dashboard")
 @staff_login_required
 def dashboard():
-    """Tableau de bord de la faculté : vue d'ensemble de tous les étudiants et leur statut."""
+    """Tableau de bord de la faculté : vue d'ensemble de tous les étudiants et leur solde."""
     query = request.args.get("q", "").strip()
     conn = get_db_connection()
     if query:
         like = f"%{query}%"
-        students = conn.execute(
-            "SELECT * FROM students WHERE name LIKE ? OR matricule LIKE ? ORDER BY paid ASC, name ASC",
-            (like, like),
-        ).fetchall()
+        students = fetch_students_with_balance(
+            conn, "WHERE s.name LIKE ? OR s.matricule LIKE ?", (like, like)
+        )
     else:
-        students = conn.execute("SELECT * FROM students ORDER BY paid ASC, name ASC").fetchall()
+        students = fetch_students_with_balance(conn)
 
     total = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
-    paid_count = conn.execute("SELECT COUNT(*) FROM students WHERE paid = 1").fetchone()[0]
+    paid_count = sum(1 for s in students if s["status"] == "À jour")
     conn.close()
 
     return render_template(
@@ -383,10 +535,7 @@ def dashboard_promotion(promotion):
         abort(404)
 
     conn = get_db_connection()
-    students = conn.execute(
-        "SELECT * FROM students WHERE level = ? ORDER BY department, name",
-        (promotion,),
-    ).fetchall()
+    students = fetch_students_with_balance(conn, "WHERE s.level = ?", (promotion,))
     conn.close()
 
     groups = {}
@@ -397,7 +546,7 @@ def dashboard_promotion(promotion):
     ordered_groups = {d: groups[d] for d in DEPARTMENT_ORDER if d in groups}
 
     total = len(students)
-    paid_count = sum(1 for s in students if s["paid"])
+    paid_count = sum(1 for s in students if s["status"] == "À jour")
 
     return render_template(
         "dashboard_promotion.html",
@@ -415,36 +564,49 @@ def verify(token):
     """
     Page côté agent : ce que le scan du QR code affiche.
     Montre l'identité de l'étudiant pour vérification visuelle,
-    et bloque toute réutilisation du même reçu (anti-fraude).
+    bloque toute réutilisation du même reçu (anti-fraude), et trace l'agent qui a scanné.
     """
     conn = get_db_connection()
-    student = conn.execute("SELECT * FROM students WHERE qr_token = ?", (token,)).fetchone()
+    payment = conn.execute("SELECT * FROM payments WHERE qr_token = ?", (token,)).fetchone()
 
-    if not student:
+    if not payment:
         conn.close()
         return render_template("verify.html", status="invalid")
 
-    if student["scanned_at"]:
+    student = conn.execute("SELECT * FROM students WHERE id = ?", (payment["student_id"],)).fetchone()
+
+    if payment["scanned_at"]:
         conn.close()
-        return render_template("verify.html", status="already_used", student=student)
+        return render_template("verify.html", status="already_used", payment=payment, student=student)
 
     scanned_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    conn.execute("UPDATE students SET scanned_at = ? WHERE id = ?", (scanned_at, student["id"]))
-    conn.commit()
-    conn.close()
+    staff = conn.execute("SELECT name FROM staff WHERE id = ?", (session.get("staff_id"),)).fetchone()
+    scanned_by = staff["name"] if staff else "Agent inconnu"
 
-    return render_template("verify.html", status="valid", student=student, scanned_at=scanned_at)
+    conn.execute(
+        "UPDATE payments SET scanned_at = ?, scanned_by = ? WHERE id = ?",
+        (scanned_at, scanned_by, payment["id"]),
+    )
+    conn.commit()
+
+    paid_total_cdf = conn.execute(
+        "SELECT COALESCE(SUM(amount_cdf), 0) FROM payments WHERE student_id = ?", (student["id"],)
+    ).fetchone()[0]
+    conn.close()
+    remaining_cdf = TOTAL_DUE_CDF - paid_total_cdf
+
+    return render_template(
+        "verify.html", status="valid", payment=payment, student=student,
+        scanned_at=scanned_at, remaining_cdf=remaining_cdf,
+    )
 
 
 @app.route("/reset/<int:student_id>")
 @staff_login_required
 def reset(student_id):
-    """Utilitaire de démo : remet l'étudiant à l'état 'non payé' pour retester le flux."""
+    """Utilitaire de démo : supprime tous les paiements de l'étudiant pour retester le flux."""
     conn = get_db_connection()
-    conn.execute("""
-        UPDATE students SET paid = 0, paid_at = NULL, payment_method = NULL,
-        qr_token = NULL, scanned_at = NULL WHERE id = ?
-    """, (student_id,))
+    conn.execute("DELETE FROM payments WHERE student_id = ?", (student_id,))
     conn.commit()
     conn.close()
     return redirect(url_for("dashboard"))

@@ -5,6 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UNILU - Paiement du minerval</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .fee-list { margin-bottom: 18px; }
+        .fee-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        .fee-row.paid { background: #eaf3de; color: #3b6d11; }
+        .fee-row.next { background: #eef4fc; border: 1px solid #378ade; }
+        .fee-row.locked { background: #f4f5f7; color: #9ca3af; }
+        .fee-row .amount { font-weight: 600; }
+        .fee-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        .fee-row.paid .fee-badge { background: #d7ead0; }
+        .fee-row.next .fee-badge { background: #dbeafe; color: #185fa5; }
+        .fee-row.locked .fee-badge { background: #e5e7eb; }
+        .balance-block {
+            text-align: center;
+            margin: 18px 0;
+            padding: 14px;
+            background: #f4f5f7;
+            border-radius: 10px;
+        }
+        .balance-block .label { font-size: 12px; color: #6b7280; }
+        .balance-block .amount { font-size: 26px; font-weight: 600; color: #1f2937; margin-top: 2px; }
+    </style>
 </head>
 <body>
     <div class="phone">
@@ -17,53 +51,74 @@
         </div>
 
         <div class="content">
+            {% set parts = student['name'].split(' ') %}
             <div class="student-card">
-                {% set parts = student['name'].split(' ') %}
                 <div class="avatar">{{ parts[0][0] }}{{ parts[1][0] if parts|length > 1 else '' }}</div>
                 <div>
                     <div class="name">{{ student['name'] }}</div>
-                    <div class="meta">{{ student['faculty'] }} · {{ student['level'] }}</div>
+                    <div class="meta">{{ student['faculty'] }} · {{ student['level'] }}{% if student['department'] %} · {{ student['department'] }}{% endif %}</div>
                 </div>
             </div>
 
-            {% if student['paid'] %}
-                <p style="text-align:center; font-size:13px; color:#3b6d11; margin-bottom:12px;">
-                    Ce compte est déjà à jour.
-                </p>
-                <a class="pay-btn" style="display:block; text-align:center; line-height:44px; text-decoration:none;"
-                   href="{{ url_for('receipt', student_id=student['id']) }}">Voir mon reçu</a>
-            {% else %}
-                <div class="amount-block">
-                    <div class="label">Montant dû · année académique</div>
-                    <div class="amount" id="amount-display">{{ student['amount_due'] }} USD</div>
+            <div class="balance-block">
+                <div class="label">Solde restant sur l'année</div>
+                <div class="amount">{{ "{:,}".format(remaining_cdf).replace(',', ' ') }} FC</div>
+            </div>
+
+            <p style="font-size:12px; color:#6b7280; margin-bottom:8px;">Détail des frais (1 300 000 FC/an)</p>
+            <div class="fee-list">
+                {% for item in items_status %}
+                <div class="fee-row {{ 'paid' if item['paid'] else ('next' if item['code'] == next_payable_code else 'locked') }}">
+                    <span>{{ item['label'] }}</span>
+                    <span class="amount">{{ "{:,}".format(item['amount']).replace(',', ' ') }} FC</span>
+                    {% if item['paid'] %}
+                    <span class="fee-badge">Payé</span>
+                    {% elif item['code'] == next_payable_code %}
+                    <span class="fee-badge">À payer</span>
+                    {% else %}
+                    <span class="fee-badge">Verrouillé</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if next_payable_code %}
+            {% set next_item = items_status | selectattr('code', 'equalto', next_payable_code) | first %}
+            <form action="{{ url_for('pay', student_id=student['id']) }}" method="POST">
+                <input type="hidden" name="item_code" value="{{ next_payable_code }}">
+
+                <p style="font-size:12px; color:#6b7280; margin-bottom:8px;">Devise de paiement</p>
+                <div class="methods">
+                    <label class="method" id="currency-cdf">
+                        <input type="radio" name="currency" value="CDF" checked onclick="selectCurrency('cdf')">
+                        CDF
+                    </label>
+                    <label class="method selected" id="currency-usd">
+                        <input type="radio" name="currency" value="USD" onclick="selectCurrency('usd')">
+                        USD
+                    </label>
                 </div>
 
-                <form action="{{ url_for('pay', student_id=student['id']) }}" method="POST">
-                    <p style="font-size:12px; color:#6b7280; margin-bottom:8px;">Devise de paiement</p>
-                    <div class="methods">
-                        <label class="method selected" id="currency-usd">
-                            <input type="radio" name="currency" value="USD" checked onclick="selectCurrency('usd')">
-                            USD
-                        </label>
-                        <label class="method" id="currency-cdf">
-                            <input type="radio" name="currency" value="CDF" onclick="selectCurrency('cdf')">
-                            CDF
-                        </label>
-                    </div>
+                <p style="font-size:12px; color:#6b7280; margin-bottom:8px;">Mode de paiement</p>
+                <div class="methods">
+                    <label class="method selected" id="method-mm">
+                        <input type="radio" name="method" value="mobile_money" checked onclick="select('mm')">
+                        Mobile money
+                    </label>
+                    <label class="method" id="method-cb">
+                        <input type="radio" name="method" value="carte" onclick="select('cb')">
+                        Carte bancaire
+                    </label>
+                </div>
 
-                    <p style="font-size:12px; color:#6b7280; margin-bottom:8px;">Mode de paiement</p>
-                    <div class="methods">
-                        <label class="method selected" id="method-mm">
-                            <input type="radio" name="method" value="mobile_money" checked onclick="select('mm')">
-                            Mobile money
-                        </label>
-                        <label class="method" id="method-cb">
-                            <input type="radio" name="method" value="carte" onclick="select('cb')">
-                            Carte bancaire
-                        </label>
-                    </div>
-                    <button type="submit" class="pay-btn" id="pay-btn">Payer {{ student['amount_due'] }} USD</button>
-                </form>
+                <button type="submit" class="pay-btn" id="pay-btn">
+                    Payer {{ next_item['label'] }} — {{ "{:,}".format(next_item['amount']).replace(',', ' ') }} FC
+                </button>
+            </form>
+            {% else %}
+            <p style="text-align:center; font-size:13px; color:#3b6d11; font-weight:600; margin-bottom:12px;">
+                Tous les frais de l'année sont réglés — vous êtes à jour !
+            </p>
             {% endif %}
 
             <div class="security-note">
@@ -74,24 +129,24 @@
     </div>
 
     <script>
-        const amountUSD = {{ student['amount_due'] }};
+        {% if next_payable_code %}
+        const nextAmountCDF = {{ next_item['amount'] }};
         const rate = {{ exchange_rate }};
 
         function selectCurrency(which) {
             document.getElementById('currency-usd').classList.toggle('selected', which === 'usd');
             document.getElementById('currency-cdf').classList.toggle('selected', which === 'cdf');
 
-            const display = document.getElementById('amount-display');
             const btn = document.getElementById('pay-btn');
-            if (which === 'cdf') {
-                const amountCDF = Math.round(amountUSD * rate).toLocaleString('fr-FR');
-                display.textContent = amountCDF + ' CDF';
-                btn.textContent = 'Payer ' + amountCDF + ' CDF';
+            if (which === 'usd') {
+                const amountUSD = (nextAmountCDF / rate).toFixed(2);
+                btn.textContent = 'Payer {{ next_item["label"] }} — ' + amountUSD + ' USD';
             } else {
-                display.textContent = amountUSD + ' USD';
-                btn.textContent = 'Payer ' + amountUSD + ' USD';
+                const amountCDF = nextAmountCDF.toLocaleString('fr-FR');
+                btn.textContent = 'Payer {{ next_item["label"] }} — ' + amountCDF + ' FC';
             }
         }
+        {% endif %}
 
         function select(which) {
             document.getElementById('method-mm').classList.toggle('selected', which === 'mm');

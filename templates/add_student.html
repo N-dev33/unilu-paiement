@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ajouter un étudiant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="phone">
+        <div class="header">
+            <div class="icon">U</div>
+            <div>
+                <h1>Université de Lubumbashi</h1>
+                <p>Ajouter un étudiant</p>
+            </div>
+        </div>
+
+        <div class="content">
+
+            {% if generated_password %}
+            <div style="background:#eaf3de; border-radius:10px; padding:14px; margin-bottom:18px;">
+                <p style="font-size:13px; font-weight:600; color:#3b6d11; margin-bottom:6px;">
+                    Étudiant créé avec succès
+                </p>
+                <p style="font-size:12px; color:#1f2937; margin-bottom:4px;">Matricule : <strong>{{ created_student }}</strong></p>
+                <p style="font-size:12px; color:#1f2937;">Mot de passe : <strong>{{ generated_password }}</strong></p>
+                <p style="font-size:11px; color:#6b7280; margin-top:8px;">
+                    Note bien ce mot de passe et transmets-le à l'étudiant — il ne sera plus affiché après.
+                </p>
+            </div>
+            <a class="pay-btn" style="display:block; text-align:center; line-height:44px; text-decoration:none; margin-bottom:12px;"
+               href="{{ url_for('add_student') }}">Ajouter un autre étudiant</a>
+            {% endif %}
+
+            {% if error %}
+            <p style="font-size:12px; color:#a32d2d; margin-bottom:12px;">{{ error }}</p>
+            {% endif %}
+
+            <form method="POST">
+                <p style="font-size:12px; color:#6b7280; margin-bottom:4px;">Matricule</p>
+                <input type="text" name="matricule" placeholder="UNILU-CRIM-2026-055" required
+                       style="width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:13px; margin-bottom:14px;">
+
+                <p style="font-size:12px; color:#6b7280; margin-bottom:4px;">Nom complet</p>
+                <input type="text" name="name" placeholder="Prénom Nom" required
+                       style="width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:13px; margin-bottom:14px;">
+
+                <p style="font-size:12px; color:#6b7280; margin-bottom:4px;">Niveau</p>
+                <select name="level" required
+                        style="width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:13px; margin-bottom:14px;">
+                    <option value="">Choisir...</option>
+                    <option value="L1">L1</option>
+                    <option value="L2">L2</option>
+                    <option value="L3">L3</option>
+                    <option value="M1">M1</option>
+                    <option value="M2">M2</option>
+                </select>
+
+                <p style="font-size:12px; color:#6b7280; margin-bottom:4px;">Département (requis à partir de L2)</p>
+                <select name="department"
+                        style="width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:13px; margin-bottom:18px;">
+                    <option value="">Aucun (L1 uniquement)</option>
+                    <option value="CEE">Criminologie économique et environnementale (CEE)</option>
+                    <option value="SI">Sécurité intérieure (SI)</option>
+                    <option value="PE">Protection de l'enfant (PE)</option>
+                </select>
+
+                <p style="font-size:11px; color:#9ca3af; margin-bottom:18px;">
+                    Le montant du minerval est fixe pour tous : 1 300 000 FC (3 tranches de 350 000 FC + 250 000 FC de frais connexes).
+                </p>
+
+                <button type="submit" class="pay-btn">Créer l'étudiant</button>
+            </form>
+
+            <a class="back-link" href="{{ url_for('dashboard') }}">Retour au tableau de bord</a>
+        </div>
+    </div>
+</body>
+</html>

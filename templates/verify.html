@@ -12,8 +12,8 @@
         {% if status == "valid" %}
         <div class="verify-status valid">
             <div class="big-icon">✓</div>
-            <h2>Reçu valide</h2>
-            <p>Paiement du minerval confirmé</p>
+            <h2>{{ payment['item_label'] }} valide</h2>
+            <p>Paiement confirmé</p>
         </div>
         <div class="verify-details">
             {% if student['photo_filename'] %}
@@ -26,7 +26,9 @@
             <div class="receipt-details">
                 <div class="row"><span>Nom</span><span>{{ student['name'] }}</span></div>
                 <div class="row"><span>Matricule</span><span>{{ student['matricule'] }}</span></div>
-                <div class="row"><span>Faculté</span><span>{{ student['faculty'] }} · {{ student['level'] }}</span></div>
+                <div class="row"><span>Promotion</span><span>{{ student['level'] }}{% if student['department'] %} · {{ student['department'] }}{% endif %}</span></div>
+                <div class="row"><span>Élément contrôlé</span><span>{{ payment['item_label'] }}</span></div>
+                <div class="row"><span>Solde restant</span><span>{{ "{:,}".format(remaining_cdf).replace(',', ' ') }} FC</span></div>
                 <div class="row"><span>Contrôlé le</span><span>{{ scanned_at }}</span></div>
             </div>
             <p style="text-align:center; font-size:12px; color:#6b7280; margin-top:14px;">
@@ -44,7 +46,9 @@
             <div class="receipt-details">
                 <div class="row"><span>Nom</span><span>{{ student['name'] }}</span></div>
                 <div class="row"><span>Matricule</span><span>{{ student['matricule'] }}</span></div>
-                <div class="row"><span>Déjà contrôlé le</span><span>{{ student['scanned_at'] }}</span></div>
+                <div class="row"><span>Élément</span><span>{{ payment['item_label'] }}</span></div>
+                <div class="row"><span>Déjà contrôlé le</span><span>{{ payment['scanned_at'] }}</span></div>
+                <div class="row"><span>Par</span><span>{{ payment['scanned_by'] or '—' }}</span></div>
             </div>
             <p style="text-align:center; font-size:12px; color:#854f0b; margin-top:14px;">
                 Attention : ce reçu a peut-être été transmis à une autre personne.

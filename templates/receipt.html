@@ -19,8 +19,8 @@
         <div class="content">
             <div class="receipt-status">
                 <div class="check">✓</div>
-                <h2>Paiement confirmé</h2>
-                <p>Le minerval a bien été payé</p>
+                <h2>{{ payment['item_label'] }} payée</h2>
+                <p>Paiement confirmé</p>
             </div>
 
             <div class="qr-box">
@@ -31,22 +31,26 @@
             <div class="receipt-details">
                 <div class="row"><span>Étudiant</span><span>{{ student['name'] }}</span></div>
                 <div class="row"><span>Matricule</span><span>{{ student['matricule'] }}</span></div>
-                <div class="row"><span>Faculté</span><span>{{ student['faculty'] }}</span></div>
+                <div class="row"><span>Élément payé</span><span>{{ payment['item_label'] }}</span></div>
                 <div class="row">
                     <span>Montant</span>
                     <span>
-                        {% if student['payment_currency'] == 'CDF' and student['amount_local_paid'] %}
-                            {{ "{:,}".format(student['amount_local_paid']).replace(',', ' ') }} CDF
+                        {% if payment['currency'] == 'USD' %}
+                            {{ payment['amount_paid'] }} USD
                         {% else %}
-                            {{ student['amount_due'] }} USD
+                            {{ "{:,}".format(payment['amount_paid']|int).replace(',', ' ') }} FC
                         {% endif %}
                     </span>
                 </div>
-                <div class="row"><span>Mode</span><span>{{ 'Mobile money' if student['payment_method'] == 'mobile_money' else 'Carte bancaire' }}</span></div>
-                <div class="row"><span>Date</span><span>{{ student['paid_at'] }}</span></div>
+                <div class="row"><span>Mode</span><span>{{ 'Mobile money' if payment['method'] == 'mobile_money' else 'Carte bancaire' }}</span></div>
+                <div class="row"><span>Date</span><span>{{ payment['paid_at'] }}</span></div>
+                <div class="row">
+                    <span>Solde restant</span>
+                    <span>{{ "{:,}".format(remaining_cdf).replace(',', ' ') }} FC</span>
+                </div>
             </div>
 
-            <a class="back-link" href="{{ url_for('index') }}">Retour</a>
+            <a class="back-link" href="{{ url_for('pay_screen', student_id=student['id']) if session.get('student_id') else url_for('dashboard') }}">Retour</a>
         </div>
     </div>
 </body>
