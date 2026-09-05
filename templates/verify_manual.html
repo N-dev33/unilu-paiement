@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recherche manuelle - UNILU</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="phone">
+        <div class="header">
+            <div class="icon">U</div>
+            <div>
+                <h1>Université de Lubumbashi</h1>
+                <p>Recherche manuelle par matricule</p>
+            </div>
+        </div>
+
+        <div class="content">
+            <p style="font-size:12px; color:#6b7280; margin-bottom:14px;">
+                À utiliser si l'étudiant n'a pas de téléphone ou ne peut pas montrer son QR code.
+            </p>
+
+            <form method="GET" action="{{ url_for('verify_manual') }}">
+                <input type="text" name="matricule" value="{{ matricule }}" placeholder="UNILU-CRIM-2026-014" required
+                       style="width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:13px; margin-bottom:12px;">
+                <button type="submit" class="pay-btn">Rechercher</button>
+            </form>
+
+            {% if error %}
+            <p style="font-size:12px; color:#a32d2d; margin-top:14px; text-align:center;">{{ error }}</p>
+            {% endif %}
+
+            {% if result %}
+            {% set student = result['student'] %}
+            <div style="margin-top:20px; padding-top:16px; border-top:1px solid #e5e7eb;">
+                <div style="text-align:center; margin-bottom:14px;">
+                    {% if student['photo_filename'] %}
+                    <img style="width:70px; height:70px; border-radius:50%; object-fit:cover; margin-bottom:8px;"
+                         src="{{ url_for('static', filename='photos/' + student['photo_filename']) }}" alt="Photo">
+                    {% else %}
+                    {% set parts = student['name'].split(' ') %}
+                    <div style="width:70px; height:70px; border-radius:50%; background:#d1d5db; color:#4b5563; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:600; margin:0 auto 8px;">
+                        {{ parts[0][0] }}{{ parts[1][0] if parts|length > 1 else '' }}
+                    </div>
+                    {% endif %}
+
+                    {% if result['status'] == 'À jour' %}
+                    <span class="badge paid" style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; background:#eaf3de; color:#3b6d11;">À jour</span>
+                    {% elif result['status'] == 'Partiel' %}
+                    <span class="badge partiel" style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; background:#faeeda; color:#854f0b;">Partiel</span>
+                    {% else %}
+                    <span class="badge unpaid" style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; background:#fcebeb; color:#a32d2d;">Non payé</span>
+                    {% endif %}
+                </div>
+
+                <div class="receipt-details">
+                    <div class="row"><span>Nom</span><span>{{ student['name'] }}</span></div>
+                    <div class="row"><span>Matricule</span><span>{{ student['matricule'] }}</span></div>
+                    <div class="row"><span>Promotion</span><span>{{ student['level'] }}{% if student['department'] %} · {{ student['department'] }}{% endif %}</span></div>
+                    <div class="row"><span>Solde restant</span><span>{{ "{:,}".format(result['remaining_cdf']).replace(',', ' ') }} FC</span></div>
+                </div>
+
+                <p style="text-align:center; font-size:12px; color:#6b7280; margin-top:14px;">
+                    Comparez le visage de l'étudiant présent à la photo ci-dessus.
+                </p>
+            </div>
+            {% endif %}
+
+            <a class="back-link" href="{{ url_for('dashboard') }}">Retour au tableau de bord</a>
+        </div>
+    </div>
+</body>
+</html>

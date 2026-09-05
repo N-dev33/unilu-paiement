@@ -495,6 +495,43 @@ def add_student():
     )
 
 
+@app.route("/verify-manual")
+@staff_login_required
+def verify_manual():
+    """
+    Recherche manuelle par matricule — filet de sécurité si un étudiant n'a pas
+    de téléphone (en panne, oublié, pas de smartphone) pour montrer son QR code.
+    """
+    matricule = request.args.get("matricule", "").strip()
+    result = None
+    error = None
+
+    if matricule:
+        conn = get_db_connection()
+        student = conn.execute(
+            "SELECT * FROM students WHERE UPPER(matricule) = UPPER(?)", (matricule,)
+        ).fetchone()
+
+        if student:
+            paid_cdf = conn.execute(
+                "SELECT COALESCE(SUM(amount_cdf), 0) FROM payments WHERE student_id = ?",
+                (student["id"],),
+            ).fetchone()[0]
+            remaining_cdf = TOTAL_DUE_CDF - paid_cdf
+            if paid_cdf == 0:
+                status = "Non payé"
+            elif remaining_cdf <= 0:
+                status = "À jour"
+            else:
+                status = "Partiel"
+            result = {"student": student, "remaining_cdf": remaining_cdf, "status": status}
+        else:
+            error = "Aucun étudiant trouvé avec ce matricule."
+        conn.close()
+
+    return render_template("verify_manual.html", result=result, error=error, matricule=matricule)
+
+
 @app.route("/dashboard")
 @staff_login_required
 def dashboard():
