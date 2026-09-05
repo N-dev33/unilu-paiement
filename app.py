@@ -1,7 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for, abort, session
+from flask import Flask, render_template, request, redirect, url_for, abort, session, send_file
 import sqlite3
 import os
 import secrets
+import io
 from datetime import datetime
 from functools import wraps
 from werkzeug.utils import secure_filename
@@ -685,6 +686,23 @@ def verify_manual():
         conn.close()
 
     return render_template("verify_manual.html", result=result, error=error, matricule=matricule)
+
+
+@app.route("/admin/backup")
+@staff_login_required
+def admin_backup():
+    """Permet à un agent de télécharger immédiatement une copie complète de la base de données."""
+    if not os.path.exists(DB_PATH):
+        abort(404)
+    with open(DB_PATH, "rb") as f:
+        data = f.read()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    return send_file(
+        io.BytesIO(data),
+        as_attachment=True,
+        download_name=f"unilu_backup_{timestamp}.db",
+        mimetype="application/octet-stream",
+    )
 
 
 @app.route("/dashboard")

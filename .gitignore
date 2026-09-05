@@ -16,3 +16,5 @@ static/photos/*
 # Environnement virtuel Python (si tu en crées un en local)
 venv/
 env/
+
+backup/
