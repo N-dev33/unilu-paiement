@@ -182,6 +182,15 @@ def init_db():
         except sqlite3.OperationalError:
             pass  # la colonne existe déjà
 
+    # Empêche un double paiement du même élément par le même étudiant (protection contre les doubles clics / requêtes simultanées)
+    try:
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_student_item ON payments(student_id, item_code)"
+        )
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # des doublons existent déjà dans les données de test ; à nettoyer manuellement si besoin
+
     existing_students = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
     if existing_students == 0:
         demo_password = generate_password_hash("etudiant123")
@@ -443,10 +452,22 @@ def pay(student_id):
 
     paid_at = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    cur = conn.execute("""
-        INSERT INTO payments (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at))
+    try:
+        cur = conn.execute("""
+            INSERT INTO payments (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (student_id, item_code, item_label, amount_cdf, currency, amount_paid, method, paid_at))
+    except sqlite3.IntegrityError:
+        # Deux requêtes simultanées (double clic) ont tenté de payer le même élément :
+        # une seule est acceptée, l'autre est renvoyée proprement vers le reçu déjà créé.
+        conn.close()
+        existing = get_db_connection().execute(
+            "SELECT id FROM payments WHERE student_id = ? AND item_code = ?", (student_id, item_code)
+        ).fetchone()
+        if existing:
+            return redirect(url_for("receipt", payment_id=existing["id"]))
+        abort(409)
+
     payment_id = cur.lastrowid
 
     # Le token contient les données du paiement, signées — infalsifiable sans la clé secrète du serveur
