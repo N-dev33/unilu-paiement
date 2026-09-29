@@ -906,5 +906,11 @@ def reset(student_id):
 
 init_db()
 
+# --- API mobile ---
+import sys
+sys.modules.setdefault("app", sys.modules[__name__])
+from api_mobile import api_bp
+app.register_blueprint(api_bp)
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", debug=True)
